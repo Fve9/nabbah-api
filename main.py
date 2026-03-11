@@ -11,7 +11,7 @@ app = FastAPI()
 MODEL_ID = "fve9/Nabbah_saudi_bert"
 HF_TOKEN = os.getenv("HF_TOKEN")  # مهم إذا الريبو Private
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, token=HF_TOKEN)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, token=HF_TOKEN, use_fast=False)
 model = AutoModelForSequenceClassification.from_pretrained(MODEL_ID, token=HF_TOKEN)
 model.eval()
 
