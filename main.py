@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import PreTrainedTokenizerFast, AutoModelForSequenceClassification
 from huggingface_hub import hf_hub_download
 import torch
 import json
@@ -9,9 +9,24 @@ import os
 app = FastAPI()
 
 MODEL_ID = "fve9/Nabbah_saudi_bert"
-HF_TOKEN = os.getenv("HF_TOKEN")  # مهم إذا الريبو Private
+HF_TOKEN = os.getenv("HF_TOKEN")
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, token=HF_TOKEN, use_fast=False)
+tokenizer_file = hf_hub_download(
+    repo_id=MODEL_ID,
+    filename="tokenizer.json",
+    repo_type="model",
+    token=HF_TOKEN
+)
+
+tokenizer = PreTrainedTokenizerFast(
+    tokenizer_file=tokenizer_file,
+    unk_token="[UNK]",
+    sep_token="[SEP]",
+    pad_token="[PAD]",
+    cls_token="[CLS]",
+    mask_token="[MASK]"
+)
+
 model = AutoModelForSequenceClassification.from_pretrained(MODEL_ID, token=HF_TOKEN)
 model.eval()
 
