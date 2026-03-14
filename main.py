@@ -6,7 +6,7 @@ import torch
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import BertTokenizerFast, AutoModelForSequenceClassification
 
 # ======================================
 # 1) MODEL
@@ -14,7 +14,7 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 MODEL_NAME = "Fve9/Nabbah_saudi_bert"
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, token=HF_TOKEN)
+tokenizer = BertTokenizerFast.from_pretrained(MODEL_NAME, token=HF_TOKEN)
 model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, token=HF_TOKEN)
 model.eval()
 
