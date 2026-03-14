@@ -1,4 +1,5 @@
 import os
+import json
 import re
 from typing import List, Optional
 
@@ -6,7 +7,8 @@ import torch
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from transformers import BertTokenizerFast, AutoModelForSequenceClassification
+from transformers import PreTrainedTokenizerFast, AutoModelForSequenceClassification
+from huggingface_hub import hf_hub_download
 
 # ======================================
 # 1) MODEL
@@ -14,14 +16,42 @@ from transformers import BertTokenizerFast, AutoModelForSequenceClassification
 MODEL_NAME = "Fve9/Nabbah_saudi_bert"
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-tokenizer = BertTokenizerFast.from_pretrained(MODEL_NAME, token=HF_TOKEN)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, token=HF_TOKEN)
+tokenizer_file = hf_hub_download(
+    repo_id=MODEL_NAME,
+    filename="tokenizer.json",
+    repo_type="model",
+    token=HF_TOKEN
+)
+
+tokenizer = PreTrainedTokenizerFast(
+    tokenizer_file=tokenizer_file,
+    unk_token="[UNK]",
+    sep_token="[SEP]",
+    pad_token="[PAD]",
+    cls_token="[CLS]",
+    mask_token="[MASK]"
+)
+
+model = AutoModelForSequenceClassification.from_pretrained(
+    MODEL_NAME,
+    token=HF_TOKEN
+)
 model.eval()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
-id2label = {int(k): v for k, v in model.config.id2label.items()}
+mapping_path = hf_hub_download(
+    repo_id=MODEL_NAME,
+    filename="label_mapping.json",
+    repo_type="model",
+    token=HF_TOKEN
+)
+
+with open(mapping_path, "r", encoding="utf-8") as f:
+    mapping = json.load(f)
+
+id2label = {int(k): v for k, v in mapping["id2label"].items()}
 
 # ======================================
 # 2) LIGHT STEMMING
@@ -115,16 +145,17 @@ AUTHORITY_URGENT_PATTERNS = {
     ],
 }
 
-def classify_priority(text: str, authority: str) -> str:
+def classify_priority(text: str, authority: Optional[str]) -> str:
     text = str(text)
 
     for pat in GLOBAL_URGENT_PATTERNS:
         if re.search(pat, text):
             return "عالية"
 
-    for pat in AUTHORITY_URGENT_PATTERNS.get(authority, []):
-        if re.search(pat, text):
-            return "عالية"
+    if authority:
+        for pat in AUTHORITY_URGENT_PATTERNS.get(authority, []):
+            if re.search(pat, text):
+                return "عالية"
 
     return "منخفضة"
 
@@ -168,7 +199,7 @@ def predict_complaint(text: str, top_k: int = 3):
         return_tensors="pt",
         truncation=True,
         padding=True,
-        max_length=256,
+        max_length=256
     )
 
     inputs = {k: v.to(device) for k, v in inputs.items()}
@@ -184,7 +215,7 @@ def predict_complaint(text: str, top_k: int = 3):
     predicted_labels = []
     for rank, (label_id, conf) in enumerate(
         zip(top_ids[0].tolist(), top_probs[0].tolist()),
-        start=1,
+        start=1
     ):
         predicted_labels.append(
             {
@@ -195,7 +226,7 @@ def predict_complaint(text: str, top_k: int = 3):
         )
 
     current_label = predicted_labels[0]["label"] if predicted_labels else None
-    priority = classify_priority(clean_text, current_label) if current_label else "منخفضة"
+    priority = classify_priority(clean_text, current_label)
 
     return {
         "text": text,
